@@ -1,0 +1,603 @@
+\documentclass{article}
+\usepackage{setspace}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{fancyhdr}
+\usepackage[letterpaper, portrait, margin=1in]{geometry} %fixes margins
+
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage[table]{xcolor}
+\usepackage{wrapfig}
+\usepackage{float}
+\usepackage{colortbl}
+\usepackage{pdflscape}
+\usepackage{tabu}
+\usepackage{threeparttable}
+\usepackage{threeparttablex}
+\usepackage[normalem]{ulem}
+\usepackage{makecell}
+
+\pagestyle{fancy}
+\lhead{Alyssa J. Ix}
+\chead{Safe Water Access and Child Mortality}
+\rhead{Fall 2018}
+  \doublespacing
+\begin{document}
+\vspace{5mm} %vertical space
+
+\SweaveOpts{concordance=TRUE}
+
+<<echo=FALSE>>=
+
+#____________________________________________________________________________________________
+
+knitr::opts_chunk$set(echo = FALSE)
+#install.packages("stargazer")
+#install.packages("formattable")
+#install.packages("kableExtra")
+#install.packages("data.table")
+#install.packages("magrittr")
+#install.packages("boot")
+#install.packages("Hmisc")
+#install.packages("kableExtra_latex_packages")
+library(ipumsr)
+library(hipread)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(tidyverse)
+library(readr)
+library(knitr)
+library(Hmisc)
+library(kableExtra)
+library(formattable)
+library(stargazer)
+library(boot)
+library(magrittr)
+library(data.table)
+
+#____________________________________________________________________________________________
+
+@
+
+<<echo=FALSE>>=
+
+#____________________________________________________________________________________________
+
+#Reading in IPUMS International Data
+
+#____________________________________________________________________________________________
+
+#Samples are all from the 2000s (NOT 2010s) including- 
+      #Mexico, Bolivia, Paraguay
+      #South Africa, Ethiopia, Uganda
+      #Vietnam, Cambodia
+
+#Variables pulled- 
+      #Country
+      #Year
+      #Urban-rural status
+      #Electricity
+      #Water Supply
+      #Age
+      #Children ever born
+      #Number of children dead
+      #Educational attainment, international recode [general version]
+      #Activity status (employment status) [general version]
+
+
+#____________________________________________________________________________________________
+
+ddi <- read_ipums_ddi("ipumsi_00019.xml")
+data <- read_ipums_micro(ddi)
+
+#____________________________________________________________________________________________
+
+#labeling COUNTRY's name
+  data$COUNTRY <- factor(data$COUNTRY,
+levels = c(068,231,484,600,710,800,704,116),
+labels = c("Bolivia", "Ethiopia", "Mexico", "Paraguay","South Africa", "Uganda",
+           "Vietnam","Cambodia"))
+
+#____________________________________________________________________________________________
+
+#Removing NIU and unknown data- development variables
+data2<-data[which(data$ELECTRIC < 9 
+& data$ELECTRIC > 0 
+& data$WATSUP > 0
+& data$WATSUP < 99
+& data$EDATTAIN > -1 
+& data$EDATTAIN < 9
+& data$CHDEAD < 98 
+& data$CHBORN < 98
+& data$EMPSTAT < 9
+& data$EMPSTAT > 0),]
+
+#____________________________________________________________________________________________
+
+#dummifying electric where 1 is having electricity is 0 is not having electricity
+data2$ELECTRIC[data2$ELECTRIC==2]<- 0
+
+#____________________________________________________________________________________________
+
+#dummifying watsup, where 1 is any access to piped water
+data2$WATSUP[data2$WATSUP==10]<-1
+data2$WATSUP[data2$WATSUP==11]<-1
+data2$WATSUP[data2$WATSUP==12]<-1
+data2$WATSUP[data2$WATSUP==13]<-1
+data2$WATSUP[data2$WATSUP==14]<-1
+data2$WATSUP[data2$WATSUP==15]<-1
+data2$WATSUP[data2$WATSUP==16]<-1
+data2$WATSUP[data2$WATSUP==17]<-1
+data2$WATSUP[data2$WATSUP==18]<-1
+data2$WATSUP[data2$WATSUP>19]<-0
+
+data3<-data2
+
+#____________________________________________________________________________________________
+
+#dummifying education where 1 is completed primary school or higher
+data2$EDATTAIN[data2$EDATTAIN==1]<-0
+data2$EDATTAIN[data2$EDATTAIN==2]<-1
+data2$EDATTAIN[data2$EDATTAIN==3]<-1
+data2$EDATTAIN[data2$EDATTAIN==4]<-1
+
+#____________________________________________________________________________________________
+
+#dummifying employment
+data2$EMPSTAT[data2$EMPSTAT==1]<-1
+data2$EMPSTAT[data2$EMPSTAT==2]<-0
+data2$EMPSTAT[data2$EMPSTAT==3]<-0
+
+#____________________________________________________________________________________________
+
+#data frames by country
+Paraguay<-data2[data2$COUNTRY=="Paraguay",]
+Bolivia<-data2[data2$COUNTRY=="Bolivia",]
+Ethiopia<-data2[data2$COUNTRY=="Ethiopia",]
+Mexico<-data2[data2$COUNTRY=="Mexico",]
+SouthAfrica<-data2[data2$COUNTRY=="South Africa",]
+Uganda<-data2[data2$COUNTRY=="Uganda",]
+Vietnam<-data2[data2$COUNTRY=="Vietnam",]
+Cambodia<-data2[data2$COUNTRY=="Cambodia",]
+
+#____________________________________________________________________________________________
+
+#average Electricity
+ParaguayElectricity <- mean(Paraguay$ELECTRIC)
+BoliviaElectricity <- mean(Bolivia$ELECTRIC)
+EthiopiaElectricity<- mean(Ethiopia$ELECTRIC)
+MexicoElectricity<- mean(Mexico$ELECTRIC)
+SouthAfricaElectricity<- mean(SouthAfrica$ELECTRIC)
+UgandaElectricity<- mean(Uganda$ELECTRIC)
+VietnamElectricity<- mean(Vietnam$ELECTRIC)
+CambodiaElectricity<- mean(Cambodia$ELECTRIC)
+Electric<- data.table(Electricity= c(EthiopiaElectricity, UgandaElectricity, 
+                                     SouthAfricaElectricity, MexicoElectricity, 
+                                     ParaguayElectricity, BoliviaElectricity, 
+                                     VietnamElectricity, CambodiaElectricity))
+
+#____________________________________________________________________________________________
+
+#average piped water access
+ParaguayWater <-mean(Paraguay$WATSUP)
+BoliviaWater <-mean(Bolivia$WATSUP)
+EthiopiaWater <-mean(Ethiopia$WATSUP)
+MexicoWater <-mean(Mexico$WATSUP)
+SouthAfricaWater <-mean(SouthAfrica$WATSUP)
+UgandaWater <-mean(Uganda$WATSUP)
+VietnamWater<- mean(Vietnam$WATSUP)
+CambodiaWater<- mean(Cambodia$WATSUP)
+WaterSupply<- data.table(Water= c(EthiopiaWater, UgandaWater, SouthAfricaWater, MexicoWater,
+                                  ParaguayWater, BoliviaWater, VietnamWater, CambodiaWater))
+
+#____________________________________________________________________________________________                        
+
+#average child mortality
+ParaguayAvgMort<-mean(Paraguay$CHDEAD/Paraguay$CHBORN)
+BoliviaAvgMort<-mean(Bolivia$CHDEAD/Bolivia$CHBORN)
+EthiopiaAvgMort<-mean(Ethiopia$CHDEAD/Ethiopia$CHBORN)
+MexicoAvgMort<-mean(Mexico$CHDEAD/Mexico$CHBORN)
+SouthAfricaAvgMort<-mean(SouthAfrica$CHDEAD/SouthAfrica$CHBORN)
+UgandaAvgMort<-mean(Uganda$CHDEAD/Uganda$CHBORN)
+VietnamAvgMort<- mean(Vietnam$CHDEAD/Vietnam$CHBORN)
+CambodiaAvgMort<- mean(Cambodia$CHDEAD/Cambodia$CHBORN)
+AvgMort<- data.table(Country= c("Paraguay", "Bolivia","Ethiopia","Mexico", "South Africa",
+                                "Uganda", "Vietnam", "Cambodia"),
+                     ChildMort= c(ParaguayAvgMort, BoliviaAvgMort, EthiopiaAvgMort, 
+                                  MexicoAvgMort, SouthAfricaAvgMort, UgandaAvgMort, 
+                                  VietnamAvgMort, CambodiaAvgMort))
+
+#____________________________________________________________________________________________
+
+#average educational attainment
+ParaguayEd<-mean(Paraguay$EDATTAIN)
+BoliviaEd<-mean(Bolivia$EDATTAIN)
+EthiopiaEd<-mean(Ethiopia$EDATTAIN)
+MexicoEd<-mean(Mexico$EDATTAIN)
+SouthAfricaEd<-mean(SouthAfrica$EDATTAIN)
+UgandaEd<-mean(Uganda$EDATTAIN)
+VietnamEd<- mean(Vietnam$EDATTAIN)
+CambodiaEd<- mean(Cambodia$EDATTAIN)
+EducationalAttainment<- data.table(Country= c("Ethiopia", "Uganda", "South Africa", "Mexico",
+                                              "Paraguay", "Bolivia", "Vietnam", "Cambodia"),
+                                   Education= c(EthiopiaEd, UgandaEd, SouthAfricaEd, MexicoEd, 
+                                               ParaguayEd, BoliviaEd, VietnamEd, CambodiaEd))
+
+#____________________________________________________________________________________________
+
+#GDP per capita and life expectancy for the sampled countries 
+#***(hard coded)***
+GDPPerCapita<-  data.table(GDP= c(243.30, 240.24, 5994.20, 7341.88, 1148.23, 958.24, 1210.69,
+                                  745.79))
+
+LifeExpectency<- data.table(lifeExp= c(58.47, 49.242, 53.01, 74.36, 70.593, 61.26, 74.95, 
+                                       65.39))
+
+#____________________________________________________________________________________________
+
+#binding development indicators
+DevIndicators<- cbind(EducationalAttainment, Electric, WaterSupply, GDPPerCapita, 
+                      LifeExpectency, AvgMort)
+
+#____________________________________________________________________________________________
+
+#generates a LaTeX table for the bound development indicators
+#stargazer(DevIndicators, digits=3)
+
+#____________________________________________________________________________________________
+
+@
+
+
+
+
+<<echo=FALSE>>=
+
+#____________________________________________________________________________________________
+
+#Child Mortality Calculations by Country
+dataChMort<- data2$CHDEAD/data2$CHBORN
+BoliviaChMort<- Bolivia$CHDEAD/Bolivia$CHBORN
+EthiopiaChMort<- Ethiopia$CHDEAD/Ethiopia$CHBORN
+MexicoChMort<- Mexico$CHDEAD/Mexico$CHBORN
+ParaguayChMort<- Paraguay$CHDEAD/Paraguay$CHBORN
+SouthAfricaChMort<- SouthAfrica$CHDEAD/SouthAfrica$CHBORN
+UgandaChMort<- Uganda$CHDEAD/Uganda$CHBORN
+VietnamChMort<- Vietnam$CHDEAD/Vietnam$CHBORN
+CambodiaChMort<- (Cambodia$CHDEAD)/(Cambodia$CHBORN)
+
+#____________________________________________________________________________________________
+
+@
+
+
+<<echo=FALSE>>=
+
+#____________________________________________________________________________________________
+
+#Computing correlations between child mortality and water supply
+EthiopiaCor<- cor(EthiopiaChMort, Ethiopia$WATSUP, use="complete.obs")
+UgandaCor<- cor(UgandaChMort, Uganda$WATSUP, use="complete.obs")
+SouthAfricaCor<-cor(SouthAfricaChMort, SouthAfrica$WATSUP, use="complete.obs")
+MexicoCor<-cor(MexicoChMort, Mexico$WATSUP, use="complete.obs")
+ParaguayCor<-cor(ParaguayChMort, Paraguay$WATSUP, use="complete.obs")
+BoliviaCor<-cor(BoliviaChMort, Bolivia$WATSUP, use="complete.obs")
+VietnamCor<- cor(VietnamChMort, Vietnam$WATSUP, use="complete.obs")
+CambodiaCor<- cor(CambodiaChMort, Cambodia$WATSUP, use="complete.obs")
+dt<- data.table(Country= c("Ethiopia", "Uganda", "South Africa", "Mexico", "Paraguay",
+                           "Bolivia", "Vietnam", "Cambodia"),
+                Correlation= c(EthiopiaCor, UgandaCor, SouthAfricaCor, MexicoCor, 
+                               ParaguayCor, BoliviaCor, VietnamCor, CambodiaCor))
+
+#____________________________________________________________________________________________
+
+#Correlations in Hispanic America
+HispanicAmericandt<- data.table(Country= c("Mexico", "Paraguay", "Bolivia"),
+                Correlation= c(MexicoCor, ParaguayCor, BoliviaCor))
+HADF<- data.frame("RegionalDevelopmentRank"=c(1,2,3),
+                  "Region" = c("Hispanic America", "Hispanic America","Hispanic America"), 
+                  "Country"=c("Mexico", "Paraguay", "Bolivia"), 
+                  "Correlation"= c(-0.0592281, -0.0522537, -0.1322524))
+
+ggplot(HADF, aes(y=Correlation, x=Country, group=1)) +
+    geom_line() +
+    labs(title="Correlation between piped water access and child mortality", x="Country", 
+         y = "Correlation")
+  
+#____________________________________________________________________________________________
+
+#All correlations 
+DevCorDF<-data.frame("RegionalDevelopmentRank"=c(1,2,3,1,2,3,1,2),
+                     "Region" = c("Hispanic America","Hispanic America", "Hispanic America",
+                                  "Africa", "Africa", "Africa", "South East Asia", 
+                                  "South East Asia"), 
+                     "Country"=c("Mexico", "Paraguay", "Bolivia", "South Africa", "Ethiopia",
+                                 "Uganda", "Vietnam", "Cambodia" ), 
+                     "Correlation"= c(-0.059297521, -0.052301340, -0.133031665, -0.034922257,
+                                      -0.007969112, -0.087521441, -0.038655625,-0.060402075))
+
+ggplot(DevCorDF, aes(fill=Country, y=Correlation, x=Region)) +
+    geom_bar(position="dodge", stat="identity") +
+    labs(title="Correlation between piped water access and child mortality")
+
+#____________________________________________________________________________________________
+
+#Creating another data frame
+Paraguay<-data3[data3$COUNTRY=="Paraguay",]
+Bolivia<-data3[data3$COUNTRY=="Bolivia",]
+Ethiopia<-data3[data3$COUNTRY=="Ethiopia",]
+Mexico<-data3[data3$COUNTRY=="Mexico",]
+SouthAfrica<-data3[data3$COUNTRY=="South Africa",]
+Uganda<-data3[data3$COUNTRY=="Uganda",]
+Vietnam<-data3[data3$COUNTRY=="Vietnam",]
+Cambodia<-data3[data3$COUNTRY=="Cambodia",]
+
+#____________________________________________________________________________________________
+
+#Piped Water Access by Educational Attainment correlations
+
+#Separating by educational attainment
+ParaguayEd1<-Paraguay[Paraguay$EDATTAIN==1,]
+ParaguayEd2<-Paraguay[Paraguay$EDATTAIN==2,]
+ParaguayEd3<-Paraguay[Paraguay$EDATTAIN==3,]
+ParaguayEd4<-Paraguay[Paraguay$EDATTAIN==4,]
+BoliviaEd1<-Bolivia[Bolivia$EDATTAIN==1,]
+BoliviaEd2<-Bolivia[Bolivia$EDATTAIN==2,]
+BoliviaEd3<-Bolivia[Bolivia$EDATTAIN==3,]
+BoliviaEd4<-Bolivia[Bolivia$EDATTAIN==4,]
+EthiopiaEd1<-Ethiopia[Ethiopia$EDATTAIN==1,]
+EthiopiaEd2<-Ethiopia[Ethiopia$EDATTAIN==2,]
+EthiopiaEd3<-Ethiopia[Ethiopia$EDATTAIN==3,]
+EthiopiaEd4<-Ethiopia[Ethiopia$EDATTAIN==4,]
+MexicoEd1<-Mexico[Mexico$EDATTAIN==1,]
+MexicoEd2<-Mexico[Mexico$EDATTAIN==2,]
+MexicoEd3<-Mexico[Mexico$EDATTAIN==3,]
+MexicoEd4<-Mexico[Mexico$EDATTAIN==4,]
+SouthAfricaEd1<-SouthAfrica[SouthAfrica$EDATTAIN==1,]
+SouthAfricaEd2<-SouthAfrica[SouthAfrica$EDATTAIN==2,]
+SouthAfricaEd3<-SouthAfrica[SouthAfrica$EDATTAIN==3,]
+SouthAfricaEd4<-SouthAfrica[SouthAfrica$EDATTAIN==4,]
+UgandaEd1<-Uganda[Uganda$EDATTAIN==1,]
+UgandaEd2<-Uganda[Uganda$EDATTAIN==2,]
+UgandaEd3<-Uganda[Uganda$EDATTAIN==3,]
+UgandaEd4<-Uganda[Uganda$EDATTAIN==4,]
+VietnamEd1<-Vietnam[Vietnam$EDATTAIN==1,]
+VietnamEd2<-Vietnam[Vietnam$EDATTAIN==2,]
+VietnamEd3<-Vietnam[Vietnam$EDATTAIN==3,]
+VietnamEd4<-Vietnam[Vietnam$EDATTAIN==4,]
+CambodiaEd1<-Cambodia[Cambodia$EDATTAIN==1,]
+CambodiaEd2<-Cambodia[Cambodia$EDATTAIN==2,]
+CambodiaEd3<-Cambodia[Cambodia$EDATTAIN==3,]
+CambodiaEd4<-Cambodia[Cambodia$EDATTAIN==4,]
+
+#____________________________________________________________________________________________
+
+#Child Mortality by Educational Attainment
+ParaguayEd1ChMort<-(ParaguayEd1$CHDEAD)/(ParaguayEd1$CHBORN)
+ParaguayEd2ChMort<-(ParaguayEd2$CHDEAD)/(ParaguayEd2$CHBORN)
+ParaguayEd3ChMort<-(ParaguayEd3$CHDEAD)/(ParaguayEd3$CHBORN)
+ParaguayEd4ChMort<-(ParaguayEd4$CHDEAD)/(ParaguayEd4$CHBORN)
+
+BoliviaEd1ChMort<-(BoliviaEd1$CHDEAD)/(BoliviaEd1$CHBORN)
+BoliviaEd2ChMort<-(BoliviaEd2$CHDEAD)/(BoliviaEd2$CHBORN)
+BoliviaEd3ChMort<-(BoliviaEd3$CHDEAD)/(BoliviaEd3$CHBORN)
+BoliviaEd4ChMort<-(BoliviaEd4$CHDEAD)/(BoliviaEd4$CHBORN)
+
+EthiopiaEd1ChMort<-(EthiopiaEd1$CHDEAD)/(EthiopiaEd1$CHBORN)
+EthiopiaEd2ChMort<-(EthiopiaEd2$CHDEAD)/(EthiopiaEd2$CHBORN)
+EthiopiaEd3ChMort<-(EthiopiaEd3$CHDEAD)/(EthiopiaEd3$CHBORN)
+EthiopiaEd4ChMort<-(EthiopiaEd4$CHDEAD)/(EthiopiaEd4$CHBORN)
+
+MexicoEd1ChMort<-(MexicoEd1$CHDEAD)/(MexicoEd1$CHBORN)
+MexicoEd2ChMort<-(MexicoEd2$CHDEAD)/(MexicoEd2$CHBORN)
+MexicoEd3ChMort<-(MexicoEd3$CHDEAD)/(MexicoEd3$CHBORN)
+MexicoEd4ChMort<-(MexicoEd4$CHDEAD)/(MexicoEd4$CHBORN)
+
+SouthAfricaEd1ChMort<-(SouthAfricaEd1$CHDEAD)/(SouthAfricaEd1$CHBORN)
+SouthAfricaEd2ChMort<-(SouthAfricaEd2$CHDEAD)/(SouthAfricaEd2$CHBORN)
+SouthAfricaEd3ChMort<-(SouthAfricaEd3$CHDEAD)/(SouthAfricaEd3$CHBORN)
+SouthAfricaEd4ChMort<-(SouthAfricaEd4$CHDEAD)/(SouthAfricaEd4$CHBORN)
+
+UgandaEd1ChMort<-(UgandaEd1$CHDEAD)/(UgandaEd1$CHBORN)
+UgandaEd2ChMort<-(UgandaEd2$CHDEAD)/(UgandaEd2$CHBORN)
+UgandaEd3ChMort<-(UgandaEd3$CHDEAD)/(UgandaEd3$CHBORN)
+UgandaEd4ChMort<-(UgandaEd4$CHDEAD)/(UgandaEd4$CHBORN)
+
+VietnamEd1ChMort<-(VietnamEd1$CHDEAD)/(VietnamEd1$CHBORN)
+VietnamEd2ChMort<-(VietnamEd2$CHDEAD)/(VietnamEd2$CHBORN)
+VietnamEd3ChMort<-(VietnamEd3$CHDEAD)/(VietnamEd3$CHBORN)
+VietnamEd4ChMort<-(VietnamEd4$CHDEAD)/(VietnamEd4$CHBORN)
+
+CambodiaEd1ChMort<-(CambodiaEd1$CHDEAD)/(CambodiaEd1$CHBORN)
+CambodiaEd2ChMort<-(CambodiaEd2$CHDEAD)/(CambodiaEd2$CHBORN)
+CambodiaEd3ChMort<-(CambodiaEd3$CHDEAD)/(CambodiaEd3$CHBORN)
+CambodiaEd4ChMort<-(CambodiaEd4$CHDEAD)/(CambodiaEd4$CHBORN)
+
+#____________________________________________________________________________________________
+
+#Calculating the correlation between child mortality and water supply by ed attainment
+ParaguayEd1Cor<- cor(ParaguayEd1ChMort, ParaguayEd1$WATSUP, use="complete.obs")
+ParaguayEd2Cor<- cor(ParaguayEd2ChMort, ParaguayEd2$WATSUP, use="complete.obs")
+ParaguayEd3Cor<- cor(ParaguayEd3ChMort, ParaguayEd3$WATSUP, use="complete.obs")
+ParaguayEd4Cor<- cor(ParaguayEd4ChMort, ParaguayEd4$WATSUP, use="complete.obs")
+BoliviaEd1Cor<- cor(BoliviaEd1ChMort, BoliviaEd1$WATSUP, use="complete.obs")
+BoliviaEd2Cor<- cor(BoliviaEd2ChMort, BoliviaEd2$WATSUP, use="complete.obs")
+BoliviaEd3Cor<- cor(BoliviaEd3ChMort, BoliviaEd3$WATSUP, use="complete.obs")
+BoliviaEd4Cor<- cor(BoliviaEd4ChMort, BoliviaEd4$WATSUP, use="complete.obs")
+EthiopiaEd1Cor<- cor(EthiopiaEd1ChMort, EthiopiaEd1$WATSUP, use="complete.obs")
+EthiopiaEd2Cor<- cor(EthiopiaEd2ChMort, EthiopiaEd2$WATSUP, use="complete.obs")
+EthiopiaEd3Cor<- cor(EthiopiaEd3ChMort, EthiopiaEd3$WATSUP, use="complete.obs")
+EthiopiaEd4Cor<- cor(EthiopiaEd4ChMort, EthiopiaEd4$WATSUP, use="complete.obs")
+MexicoEd1Cor<- cor(MexicoEd1ChMort, MexicoEd1$WATSUP, use="complete.obs")
+MexicoEd2Cor<- cor(MexicoEd2ChMort, MexicoEd2$WATSUP, use="complete.obs")
+MexicoEd3Cor<- cor(MexicoEd3ChMort, MexicoEd3$WATSUP, use="complete.obs")
+MexicoEd4Cor <- cor(MexicoEd4ChMort, MexicoEd4$WATSUP, use="complete.obs")
+SouthAfricaEd1Cor<- cor(SouthAfricaEd1ChMort, SouthAfricaEd1$WATSUP, use="complete.obs")
+SouthAfricaEd2Cor<- cor(SouthAfricaEd2ChMort, SouthAfricaEd2$WATSUP, use="complete.obs")
+SouthAfricaEd3Cor<- cor(SouthAfricaEd3ChMort, SouthAfricaEd3$WATSUP, use="complete.obs")
+SouthAfricaEd4Cor<- cor(SouthAfricaEd4ChMort, SouthAfricaEd4$WATSUP, use="complete.obs")
+UgandaEd1Cor<- cor(UgandaEd1ChMort, UgandaEd1$WATSUP, use="complete.obs")
+UgandaEd2Cor<- cor(UgandaEd2ChMort, UgandaEd2$WATSUP, use="complete.obs")
+UgandaEd3Cor<- cor(UgandaEd3ChMort, UgandaEd3$WATSUP, use="complete.obs")
+UgandaEd4Cor<- cor(UgandaEd4ChMort, UgandaEd4$WATSUP, use="complete.obs")
+VietnamEd1Cor<- cor(VietnamEd1ChMort, VietnamEd1$WATSUP, use="complete.obs")
+VietnamEd2Cor<- cor(VietnamEd2ChMort, VietnamEd2$WATSUP, use="complete.obs")
+VietnamEd3Cor<- cor(VietnamEd3ChMort, VietnamEd3$WATSUP, use="complete.obs")
+VietnamEd4Cor<- cor(VietnamEd4ChMort, VietnamEd4$WATSUP, use="complete.obs")
+CambodiaEd1Cor<- cor(CambodiaEd1ChMort, CambodiaEd1$WATSUP, use="complete.obs")
+CambodiaEd2Cor<- cor(CambodiaEd2ChMort, CambodiaEd2$WATSUP, use="complete.obs")
+CambodiaEd3Cor<- cor(CambodiaEd3ChMort, CambodiaEd3$WATSUP, use="complete.obs")
+CambodiaEd4Cor<- cor(CambodiaEd4ChMort, CambodiaEd4$WATSUP, use="complete.obs")
+
+#____________________________________________________________________________________________
+
+#Average water supply for each level of educational attainment
+ParaguayEd1Water<-mean(ParaguayEd1$WATSUP)
+ParaguayEd2Water<-mean(ParaguayEd2$WATSUP)
+ParaguayEd3Water<-mean(ParaguayEd3$WATSUP)
+ParaguayEd4Water<-mean(ParaguayEd4$WATSUP)
+BoliviaEd1Water<-mean(BoliviaEd1$WATSUP)
+BoliviaEd2Water<-mean(BoliviaEd2$WATSUP)
+BoliviaEd3Water<-mean(BoliviaEd3$WATSUP)
+BoliviaEd4Water<-mean(BoliviaEd4$WATSUP)
+EthiopiaEd1Water<-mean(EthiopiaEd1$WATSUP)
+EthiopiaEd2Water<-mean(EthiopiaEd2$WATSUP)
+EthiopiaEd3Water<-mean(EthiopiaEd3$WATSUP)
+EthiopiaEd4Water<-mean(EthiopiaEd4$WATSUP)
+MexicoEd1Water<-mean(MexicoEd1$WATSUP)
+MexicoEd2Water<-mean(MexicoEd2$WATSUP)
+MexicoEd3Water<-mean(MexicoEd3$WATSUP)
+MexicoEd4Water<-mean(MexicoEd4$WATSUP)
+SouthAfricaEd1Water<-mean(SouthAfricaEd1$WATSUP)
+SouthAfricaEd2Water<-mean(SouthAfricaEd2$WATSUP)
+SouthAfricaEd3Water<-mean(SouthAfricaEd3$WATSUP)
+SouthAfricaEd4Water<-mean(SouthAfricaEd4$WATSUP)
+UgandaEd1Water<-mean(UgandaEd1$WATSUP)
+UgandaEd2Water<-mean(UgandaEd2$WATSUP)
+UgandaEd3Water<-mean(UgandaEd3$WATSUP)
+UgandaEd4Water<-mean(UgandaEd4$WATSUP)
+VietnamEd1Water<-mean(VietnamEd1$WATSUP)
+VietnamEd2Water<-mean(VietnamEd2$WATSUP)
+VietnamEd3Water<-mean(VietnamEd3$WATSUP)
+VietnamEd4Water<-mean(VietnamEd4$WATSUP)
+CambodiaEd1Water<-mean(CambodiaEd1$WATSUP)
+CambodiaEd2Water<-mean(CambodiaEd2$WATSUP)
+CambodiaEd3Water<-mean(CambodiaEd3$WATSUP)
+CambodiaEd4Water<-mean(CambodiaEd4$WATSUP)
+
+#____________________________________________________________________________________________
+
+#Storing the average water supply by educational attainment as well as the respective 
+#correlation
+EdWater<- data.table(Country=c("Paraguay", "Paraguay", "Paraguay", "Paraguay", "Bolivia",
+                               "Bolivia","Bolivia","Bolivia", "Ethiopia","Ethiopia",
+                               "Ethiopia","Ethiopia", "Mexico", "Mexico", "Mexico", "Mexico",
+                               "South Africa", "South Africa","South Africa","South Africa",
+                               "Uganda","Uganda","Uganda","Uganda", "Vietnam","Vietnam",
+                               "Vietnam","Vietnam", "Cambodia","Cambodia","Cambodia",
+                               "Cambodia"), 
+                     EducationalAttainment= c(1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4,
+                                              1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4), 
+                     WatSupByEd= c(ParaguayEd1Water, ParaguayEd2Water, ParaguayEd3Water,
+                                   ParaguayEd4Water, BoliviaEd1Water, BoliviaEd2Water, 
+                                   BoliviaEd3Water, BoliviaEd4Water, EthiopiaEd1Water, 
+                                   EthiopiaEd2Water, EthiopiaEd3Water, EthiopiaEd4Water,
+                                   MexicoEd1Water, MexicoEd2Water, MexicoEd3Water,  
+                                   MexicoEd4Water,  SouthAfricaEd1Water, SouthAfricaEd2Water,
+                                   SouthAfricaEd3Water, SouthAfricaEd4Water, UgandaEd1Water,
+                                   UgandaEd2Water, UgandaEd3Water,UgandaEd4Water,  
+                                   VietnamEd1Water, VietnamEd2Water, VietnamEd3Water,
+                                   VietnamEd4Water, CambodiaEd1Water, CambodiaEd2Water,
+                                   CambodiaEd3Water, CambodiaEd4Water), 
+                     
+                     Correlation= c(ParaguayEd1Cor,ParaguayEd2Cor, ParaguayEd3Cor, 
+                                    ParaguayEd4Cor, BoliviaEd1Cor, BoliviaEd2Cor,
+                                    BoliviaEd3Cor,BoliviaEd4Cor, EthiopiaEd1Cor,
+                                    EthiopiaEd2Cor, EthiopiaEd3Cor, EthiopiaEd4Cor,
+                                    MexicoEd1Cor, MexicoEd2Cor, MexicoEd3Cor, MexicoEd4Cor,
+                                    SouthAfricaEd1Cor,SouthAfricaEd2Cor, SouthAfricaEd3Cor,
+                                    SouthAfricaEd4Cor, UgandaEd1Cor, UgandaEd2Cor, 
+                                    UgandaEd3Cor, UgandaEd4Cor, VietnamEd1Cor, VietnamEd2Cor,
+                                    VietnamEd3Cor, VietnamEd4Cor, CambodiaEd1Cor, 
+                                    CambodiaEd2Cor, CambodiaEd3Cor, CambodiaEd4Cor))
+
+
+EdCorDF<-data.frame("Country"=c("Mexico", "Mexico", "Mexico", "Mexico", "Paraguay", 
+                                "Paraguay", "Paraguay", "Paraguay", "Bolivia","Bolivia",
+                                "Bolivia","Bolivia", "South Africa", "South Africa",
+                                "South Africa","South Africa","Ethiopia","Ethiopia",
+                                "Ethiopia","Ethiopia", "Uganda","Uganda","Uganda","Uganda",
+                                "Vietnam","Vietnam","Vietnam","Vietnam", "Cambodia",
+                                "Cambodia","Cambodia","Cambodia"), 
+                    "EducationalAttainment"= c(0, 1, 2, 3, 0, 1, 2, 3,0, 1, 2, 3,0, 1, 2, 3,
+                                               0, 1, 2, 3,0, 1, 2, 3,0, 1, 2, 3,0, 1, 2, 3), 
+                    "Water Access and Child Mortality Correlation"= c(-0.0592281, -0.0522537, 
+                                                                      -0.1322524, -0.0349081,
+                                                                      -0.0079689, -0.0872987,
+                                                                      -0.0386364,-0.0603287))
+#____________________________________________________________________________________________
+
+#Labeling the levels of educational attainment
+ EdCorDF$EducationalAttainment <- factor(EdCorDF$EducationalAttainment,
+                                  levels = c(1,2,3,4),
+                                  labels = c("Incomplete Primary", "Complete Primary",
+                                             "Complete Secondary", "Complete Tertiary"))
+ 
+EdWater$EducationalAttainment <- factor(EdWater$EducationalAttainment,
+                                levels = c(1,2,3,4),
+                                labels = c("Incomplete Primary", "Complete Primary", 
+                                           "Complete Secondary", "Complete Tertiary"))
+
+#____________________________________________________________________________________________
+ 
+#Data Viz
+ggplot(DevCorDF, aes(fill=Country, y=Correlation, x=Region)) +
+    geom_bar(position="dodge", stat="identity") 
+
+
+ggplot(EdWater, aes(group=Country, y=WatSupByEd, x=EducationalAttainment)) +
+    geom_line(aes(color=Country)) +
+    labs(title="Rate of Piped Water Access by Educational Attainment",
+         x="Educational Attainment", 
+         y = "Rate of Piped Water Access")
+
+
+ggplot(EdWater, aes(group=Country, y=Correlation, x=EducationalAttainment)) +
+    geom_line(aes(color=Country)) +
+    labs(title="Correlation by Educational Attainment",
+         x="Educational Attainment", 
+         y = "Correlation Between Water Access and Child Mortality")
+
+#print(kable(dt, "latex", booktabs=T, caption = "Correlation between child mortality and piped water access", ))
+
+#____________________________________________________________________________________________
+
+@
+
+
+
+
+	\begin{center}
+	\textbf{Works Cited}
+	\end{center}
+\vspace{5mm}
+\par
+Doyle, R. (1997). By the Numbers: Access to Safe Drinking Water. Scientific American, 277(5), 38-38. Retrieved from http://www.jstor.org/stable/24995995\par
+Boberg, J. (2005). Influences of Water Resources on Demographic Variables. In Liquid Assets: How Demographic Changes and Water Management Policies Affect Freshwater Resources (pp. 57-62). Santa Monica, CA; Arlington, VA; Pittsburgh, PA: RAND Corporation. \par
+Naiman, R., Magnuson, J., and Firth, P. (1998). Integrating Cultural, Economic, and Environmental Requirements for Fresh Water. Ecological Applications, 8(3), 569-570.\par
+Galton, F., and Duff, M. (1891). Demography. The British Medical Journal, 2(1599), 421-424. Retrieved from http://www.jstor.org/stable/20243510 \par
+Merrick, T. (1985). The Effect of Piped Water on Early Childhood Mortality in Urban Brazil, 1970 to 1976. Demography, 22(1), 1-24. Retrieved from http://www.jstor.org/stable/2060983 \par
+Gleick, P. H. (1993). Water in crisis: A guide to the world's fresh water resources. Oxford University Press.
+Gleick’s text is quite extensive, I will be utilizing parts of chapters 5 and 7-9, which discuss how important water is to agriculture, energy supply, economic development, and the growing world population. 
+\par
+Gleick, P. H.  (2000) A Look at Twenty-first Century Water Resources Development, Water International, 25:1,127-138, DOI: 10.1080/02508060008686804
+Gleick discusses changes in water resource development. Gleick notes how major infrastructure upheaval is met with resistance, and how secondary water sources, efficiency improvements, and water reallocation is being used to meet demand and reduce gaps in water access.
+\par
+
+
+\end{document}
